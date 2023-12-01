@@ -12,7 +12,7 @@ const Policy = () => {
             style={{ width: '100%' }}
           />
         </div>
-        <div className="col-md-4">
+        <div className="col-md-6">
           <p>
             Fins and Feathers store and use your data for providing better
             expected level of experience

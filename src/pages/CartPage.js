@@ -1,82 +1,107 @@
-import React, { useState, useEffect } from 'react'
-import Layout from './../components/Layout/Layout'
-import { useCart } from '../context/cart'
-import { useAuth } from '../context/auth'
-import { useNavigate } from 'react-router-dom'
-import DropIn from 'braintree-web-drop-in-react'
-import { AiFillWarning } from 'react-icons/ai'
-import axios from 'axios'
-import toast from 'react-hot-toast'
-import '../styles/CartStyles.css'
+import React, { useState, useEffect } from 'react';
+import Layout from './../components/Layout/Layout';
+import { useCart } from '../context/cart';
+import { useAuth } from '../context/auth';
+import { useNavigate } from 'react-router-dom';
+import DropIn from 'braintree-web-drop-in-react';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import '../styles/CartStyles.css';
 
 const CartPage = () => {
-  const [auth, setAuth] = useAuth()
-  const [cart, setCart] = useCart()
-  const [clientToken, setClientToken] = useState('')
-  const [instance, setInstance] = useState('')
-  const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
+  const [auth, setAuth] = useAuth();
+  const [cart, setCart] = useCart();
+  const [clientToken, setClientToken] = useState('');
+  const [instance, setInstance] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
-  //total price
+  // Function to update quantity
+  const updateQuantity = (productId, quantity) => {
+    const updatedCart = cart.map((item) => {
+      if (item._id === productId) {
+        return { ...item, quantity }; // Update the quantity for the specific product
+      }
+      return item;
+    });
+    setCart(updatedCart); // Update the local cart state
+    localStorage.setItem('cart', JSON.stringify(updatedCart)); // Update cart in local storage
+  };
+
+  
+
+  // Calculate total price with quantities
   const totalPrice = () => {
     try {
-      let total = 0
+      let total = 0;
       cart?.map((item) => {
-        total = total + item.price
-      })
+        total = total + item.price * item.quantity; // Calculate total based on quantity
+      });
       return total.toLocaleString('en-US', {
         style: 'currency',
-        currency: 'USD',
-      })
+        currency: 'INR',
+      });
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
-  }
-  //detele item
-  const removeCartItem = (pid) => {
-    try {
-      let myCart = [...cart]
-      let index = myCart.findIndex((item) => item._id === pid)
-      myCart.splice(index, 1)
-      setCart(myCart)
-      localStorage.setItem('cart', JSON.stringify(myCart))
-    } catch (error) {
-      console.log(error)
-    }
-  }
+  };
 
-  //get payment gateway token
+  // Remove item from cart
+  const removeCartItem = (productId) => {
+    try {
+      let myCart = [...cart];
+      let index = myCart.findIndex((item) => item._id === productId);
+      myCart.splice(index, 1);
+      setCart(myCart);
+      localStorage.setItem('cart', JSON.stringify(myCart));
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  // Get payment gateway token
   const getToken = async () => {
     try {
-      const { data } = await axios.get('/api/v1/product/braintree/token')
-      setClientToken(data?.clientToken)
+      const { data } = await axios.get('/api/v1/product/braintree/token');
+      setClientToken(data?.clientToken);
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
-  }
+  };
+  
   useEffect(() => {
-    getToken()
-  }, [auth?.token])
+    getToken();
+  }, [auth?.token]);
 
-  //handle payments
+  // Handle payments
   const handlePayment = async () => {
     try {
-      setLoading(true)
-      const { nonce } = await instance.requestPaymentMethod()
+      setLoading(true);
+      const { nonce } = await instance.requestPaymentMethod();
+  
+      // Create a new array with cart details including quantity
+      const cartWithQuantity = cart.map((item) => ({
+        ...item,
+        quantity: item.quantity, // Include the quantity from the cart
+      }));
+  
       const { data } = await axios.post('/api/v1/product/braintree/payment', {
         nonce,
-        cart,
-      })
-      setLoading(false)
-      localStorage.removeItem('cart')
-      setCart([])
-      navigate('/dashboard/user/orders')
-      toast.success('Payment Completed Successfully ')
+        cart: cartWithQuantity, // Send the updated cart with quantity to the server
+      });
+  
+      setLoading(false);
+      localStorage.removeItem('cart');
+      setCart([]);
+      navigate('/dashboard/user/orders');
+      toast.success('Payment Completed Successfully ');
     } catch (error) {
-      console.log(error)
-      setLoading(false)
+      console.error(error);
+      setLoading(false);
     }
-  }
+  };
+  
+
   return (
     <Layout>
       <div className=" cart-page">
@@ -112,16 +137,33 @@ const CartPage = () => {
                   </div>
                   <div className="col-md-4">
                     <p>{p.name}</p>
-                    <p>{p.description.substring(0, 30)}</p>
                     <p>Price : {p.price}</p>
                   </div>
-                  <div className="col-md-4 cart-remove-btn">
+                  <div className="col-md-4 cart-quantity">
                     <button
-                      className="btn btn-danger"
-                      onClick={() => removeCartItem(p._id)}
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => updateQuantity(p._id, p.quantity - 1)}
+                      disabled={p.quantity === 1}
                     >
-                      Remove
+                      -
                     </button>
+                    <span className="mx-2">{p.quantity}</span>
+                    <button
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => updateQuantity(p._id, p.quantity + 1)}
+                    >
+                      +
+                    </button>
+                    <br></br>
+                    <br></br>
+                    <div className="col-md-4 cart-remove-btn">
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => removeCartItem(p._id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -162,7 +204,7 @@ const CartPage = () => {
                         })
                       }
                     >
-                      Plase Login to checkout
+                      Please Login to checkout
                     </button>
                   )}
                 </div>
